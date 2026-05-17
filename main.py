@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import streamlit as st
 import pandas as pd
-import pyodbc
+import pymssql
 import time
 import os
 import re
@@ -12,13 +12,13 @@ import re
 load_dotenv()
 
 try:
-    conn = pyodbc.connect(
-        "DRIVER={ODBC Driver 18 for SQL Server};"
-        f"SERVER={os.getenv("DB_SERVER")};"
-        f"DATABASE={os.getenv("DB_NAME")};"
-        f"UID={os.getenv("DB_USER")};"
-        f"PWD={os.getenv("DB_PASSWORD")};"
-        "Encrypt=yes;TrustServerCertificate=yes;"
+    conn = pymssql.connect(
+        server = os.getenv("DB_SERVER"),
+        database = os.getenv("DB_NAME"),
+        user = os.getenv("DB_USER"),
+        password = os.getenv("DB_PASSWORD"),
+        port=1433
+        #"Encrypt=yes;TrustServerCertificate=yes;",
     )
 except Exception as e:
     st.write(f"Erro ao acessar banco de dados: {e}")
@@ -65,7 +65,8 @@ def login():
     else:
         email = st.session_state["loginData"][0]
         password = st.session_state["loginData"][1]
-        query = cursor.execute(f"SELECT ID_USER, username, e_mail, password FROM userdata WHERE e_mail = '{email}'").fetchall()
+        cursor.execute("SELECT ID_USER, username, e_mail, password FROM userdata WHERE e_mail = %s", (email))
+        query = cursor.fetchall()
         
         if len(query) == 0:
             st.toast("E-mail ou senha incorretos!", icon="❌")
@@ -120,7 +121,7 @@ if verificarLogin:
                                (NULL, NULL, NULL, NULL, NULL, {st.session_state["loginData"][0]})
                                
                                """)
-        cursor.commit()
+        conn.commit()
         
         st.toast("Tarefa criada com sucesso!!", icon="✅")
     
@@ -133,8 +134,9 @@ if verificarLogin:
         "Data Conclusão": ["99/99/9999"],
         "Status": [True],
     })
-
-    tasks = cursor.execute("SELECT ID_TAREFA, status, task_name, description, initial_date, final_date, ID_USER FROM task_table").fetchall()
+    
+    cursor.execute("SELECT ID_TAREFA, status, task_name, description, initial_date, final_date, ID_USER FROM task_table")
+    tasks = cursor.fetchall()
     
     if len(tasks) == 0:
         with st.container(horizontal_alignment="center"):
@@ -172,9 +174,9 @@ if verificarLogin:
                 if coluna not in fieldNames:
                     st.error("Campo inválido")
                 else:
-                    query = f"UPDATE task_table SET {coluna} = ? WHERE ID_TAREFA = ? AND ID_USER = ?"
+                    query = f"UPDATE task_table SET {coluna} = %s WHERE ID_TAREFA = %s AND ID_USER = %s"
                     cursor.execute(query, (novoValorCampo, IDTarefa, IDUser))
-                    cursor.commit()
+                    conn.commit()
             
             
             with tableColumn[0]:
@@ -215,14 +217,6 @@ if verificarLogin:
                     args=["initial_date", task[0], task[6], f"task-initial_date-{task[0]}"],
                     key=f"task-initial_date-{task[0]}",
                     on_change=atualizarCampo)
-                
-                #if taskInitialDate != None:
-                #    if taskInitialDate != initialDateSS:
-                #        query = cursor.execute(f"UPDATE task_table SET initial_date = ? WHERE ID_TAREFA = ? AND ID_USER = ?", taskInitialDate, task[0], task[6])
-                #        cursor.commit()
-                #else:
-                #        query = cursor.execute(f"UPDATE task_table SET initial_date = NULL WHERE ID_TAREFA = ? AND ID_USER = ?", task[0], task[6])
-                #        cursor.commit()
 
 
             with tableColumn[4]:
@@ -235,9 +229,9 @@ if verificarLogin:
                     on_change=atualizarCampo)
 
             def deleteTask(IDTarefa, IDUser):
-                query = f"DELETE FROM task_table WHERE ID_TAREFA = ? AND ID_USER = ?"
+                query = f"DELETE FROM task_table WHERE ID_TAREFA = %s AND ID_USER = %s"
                 cursor.execute(query, (IDTarefa, IDUser))
-                cursor.commit()
+                conn.commit()
             
             with tableColumn[5]:
                 taskTrash = st.button(
@@ -266,7 +260,8 @@ else:
             username = st.session_state["cadData"][0]
             email = st.session_state["cadData"][1]
             password = st.session_state["cadData"][2]
-            query = cursor.execute(f"SELECT e_mail FROM userdata WHERE e_mail = '{email}'").fetchall()
+            cursor.execute(f"SELECT e_mail FROM userdata WHERE e_mail = '{email}'")
+            query = cursor.fetchall()
             emailFormat = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,7}$"
             
             if len(query) != 0 or not re.fullmatch(emailFormat, email):
@@ -274,7 +269,7 @@ else:
             else:
                 password = ph.hash(password)
                 query = cursor.execute(f"INSERT INTO userdata (username, e_mail, password) VALUES ('{username}', '{email}', '{password}')")
-                cursor.commit()
+                conn.commit()
                 del st.session_state["cadData"]
 
                 st.session_state["toogleLoginCad"] = "login"
