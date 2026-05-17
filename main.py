@@ -20,8 +20,8 @@ try:
         f"PWD={os.getenv("DB_PASSWORD")};"
         "Encrypt=yes;TrustServerCertificate=yes;"
     )
-except:
-    st.write("Erro ao acessar banco de dados")
+except Exception as e:
+    st.write(f"Erro ao acessar banco de dados: {e}")
 cursor = conn.cursor()
 
 st.set_page_config(
