@@ -20,8 +20,8 @@ try:
         port=1433
         #"Encrypt=yes;TrustServerCertificate=yes;",
     )
-except Exception as e:
-    st.write(f"Erro ao acessar banco de dados: {e}")
+except:
+    st.write(f"Erro ao acessar banco de dados")
 cursor = conn.cursor()
 
 st.set_page_config(
